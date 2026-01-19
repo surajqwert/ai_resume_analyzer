@@ -90,19 +90,20 @@ with col2:
     jd_text = st.text_area("✏️ Paste Job Description Here", height=250)
 
 # -------------------------
-# Run AI Analysis
+# Submit Button for AI Analysis
 # -------------------------
 if resume_file and jd_text:
-    with st.spinner("Analyzing Resume... Please wait 🤓"):
-        # Read resume PDF
-        reader = PdfReader(resume_file)
-        resume_text = ""
-        for page in reader.pages:
-            if page.extract_text():
-                resume_text += page.extract_text()
+    if st.button("🚀 Analyze Resume"):
+        with st.spinner("Analyzing Resume... Please wait 🤓"):
+            # Read PDF
+            reader = PdfReader(resume_file)
+            resume_text = ""
+            for page in reader.pages:
+                if page.extract_text():
+                    resume_text += page.extract_text()
 
-        # AI Prompt
-        prompt = f"""
+            # AI prompt
+            prompt = f"""
 You are an experienced HR professional and ATS system.
 
 Respond STRICTLY in this format:
@@ -132,92 +133,91 @@ Job Description:
 {jd_text}
 """
 
-        # Call OpenAI API
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=400
+            # Call OpenAI API
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=400
+            )
+
+            time.sleep(1)
+            ai_output = response.choices[0].message.content
+
+        st.success("✅ Analysis Complete!")
+
+        # -------------------------
+        # Extract Name & Match %
+        # -------------------------
+        name_match = re.search(r"Name:\s*(.*)", ai_output)
+        candidate_name = (
+            name_match.group(1).strip()
+            if name_match else extract_name_from_resume(resume_text)
         )
 
-        time.sleep(1)
+        match_match = re.search(r"(\d+)%", ai_output)
+        match_percent = int(match_match.group(1)) if match_match else 0
 
-        # ✅ IMPORTANT LINE (FIXED)
-        ai_output = response.choices[0].message.content
+        # -------------------------
+        # Display Results
+        # -------------------------
+        st.markdown(f"## 👤 Candidate: **{candidate_name}**")
+        st.markdown(f"### 🎯 Resume Match: **{match_percent}%**")
+        st.progress(match_percent)
 
-    st.success("✅ Analysis Complete!")
+        matching_skills = extract_section("Matching Skills", ai_output)
+        missing_skills = extract_section("Missing Skills", ai_output)
+        suggestions = extract_section("Suggestions", ai_output)
 
-    # -------------------------
-    # Extract Name & Match %
-    # -------------------------
-    name_match = re.search(r"Name:\s*(.*)", ai_output)
-    candidate_name = (
-        name_match.group(1).strip()
-        if name_match else extract_name_from_resume(resume_text)
-    )
+        col1, col2, col3 = st.columns(3)
 
-    match_match = re.search(r"(\d+)%", ai_output)
-    match_percent = int(match_match.group(1)) if match_match else 0
+        with col1:
+            st.markdown("### ✅ Matching Skills")
+            for skill in matching_skills:
+                st.markdown(f"- {skill}")
 
-    # -------------------------
-    # Display Results
-    # -------------------------
-    st.markdown(f"## 👤 Candidate: **{candidate_name}**")
-    st.markdown(f"### 🎯 Resume Match: **{match_percent}%**")
-    st.progress(match_percent)
+        with col2:
+            st.markdown("### ❌ Missing Skills")
+            for skill in missing_skills:
+                st.markdown(f"- {skill}")
 
-    matching_skills = extract_section("Matching Skills", ai_output)
-    missing_skills = extract_section("Missing Skills", ai_output)
-    suggestions = extract_section("Suggestions", ai_output)
+        with col3:
+            st.markdown("### 💡 Suggestions")
+            for s in suggestions:
+                st.markdown(f"- {s}")
 
-    col1, col2, col3 = st.columns(3)
+        # -------------------------
+        # PDF Download
+        # -------------------------
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
+        pdf.set_font("DejaVu", size=12)
 
-    with col1:
-        st.markdown("### ✅ Matching Skills")
-        for skill in matching_skills:
-            st.markdown(f"- {skill}")
-
-    with col2:
-        st.markdown("### ❌ Missing Skills")
-        for skill in missing_skills:
-            st.markdown(f"- {skill}")
-
-    with col3:
-        st.markdown("### 💡 Suggestions")
-        for s in suggestions:
-            st.markdown(f"- {s}")
-
-    # -------------------------
-    # PDF Download
-    # -------------------------
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
-    pdf.set_font("DejaVu", size=12)
-
-    pdf.multi_cell(
-        0,
-        10,
-        f"AI Resume Analysis Report\n\n"
-        f"Candidate: {candidate_name}\n"
-        f"Match Percentage: {match_percent}%\n\n"
-        f"Matching Skills:\n" + "\n".join(matching_skills) +
-        "\n\nMissing Skills:\n" + "\n".join(missing_skills) +
-        "\n\nSuggestions:\n" + "\n".join(suggestions)
-    )
-
-    pdf.set_y(-20)
-    pdf.set_font("DejaVu", size=8)
-    pdf.cell(0, 10, "Created by Suraj R. Swain", align="C")
-
-    pdf_file = f"{candidate_name.replace(' ', '_')}_Resume_Analysis.pdf"
-    pdf.output(pdf_file)
-
-    with open(pdf_file, "rb") as f:
-        st.download_button(
-            "📥 Download Analysis as PDF",
-            f,
-            file_name=pdf_file
+        pdf.multi_cell(
+            0,
+            10,
+            f"AI Resume Analysis Report\n\n"
+            f"Candidate: {candidate_name}\n"
+            f"Match Percentage: {match_percent}%\n\n"
+            f"Matching Skills:\n" + "\n".join(matching_skills) +
+            "\n\nMissing Skills:\n" + "\n".join(missing_skills) +
+            "\n\nSuggestions:\n" + "\n".join(suggestions)
         )
+
+        pdf.set_y(-20)
+        pdf.set_font("DejaVu", size=8)
+        pdf.cell(0, 10, "Created by Suraj R. Swain", align="C")
+
+        pdf_file = f"{candidate_name.replace(' ', '_')}_Resume_Analysis.pdf"
+        pdf.output(pdf_file)
+
+        with open(pdf_file, "rb") as f:
+            st.download_button(
+                "📥 Download Analysis as PDF",
+                f,
+                file_name=pdf_file
+            )
+
         st.markdown(
             """
             <hr style="margin-top:40px;">
