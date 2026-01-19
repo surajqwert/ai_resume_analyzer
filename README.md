@@ -28,7 +28,7 @@ An AI-powered web application that analyzes resumes against job descriptions and
 ![Upload Interface](assets/upload_interface.png)
 
 ### 3️⃣ Auto-Suggestion While Filling JD
-![Auto-suggestion JD](assets/autosuggestion_jd.png)
+![Auto-suggestion JD](assets/auto_suggestion.png)
 
 ### 4️⃣ Analysis Outcome & Download Button
 ![Analysis Outcome](assets/analysis_outcome.png)
